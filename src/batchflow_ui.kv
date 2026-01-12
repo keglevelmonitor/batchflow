@@ -1,5 +1,6 @@
 #:kivy 2.0.0
 #:import Window kivy.core.window.Window
+#:import SlideTransition kivy.uix.screenmanager.SlideTransition
 
 # --- 1. TYPOGRAPHY SYSTEM ---
 <Style_Title@Label>:
@@ -41,11 +42,26 @@
 # A standardized button style inheriting from Button
 <Style_Popup_Button@Button>:
     background_normal: ''
-    font_size: '18sp'
+    font_size: '16sp'
     bold: True
     color: 1, 1, 1, 1
-    # Default is Grey, override for Save/Delete
     background_color: 0.4, 0.4, 0.4, 1
+
+# Fine Tune Button (Small +/-)
+<FineTuneButton@Button>:
+    background_normal: ''
+    background_color: 0.25, 0.25, 0.25, 1
+    font_size: '18sp'
+    bold: True
+    color: 0.6, 0.8, 1, 1
+    size_hint_x: None
+    width: dp(35)
+    canvas.before:
+        Color:
+            rgba: 0.4, 0.4, 0.4, 1
+        Line:
+            rounded_rectangle: (self.x, self.y, self.width, self.height, 3)
+            width: 1
 
 # --- 2. TRASH DOCK ---
 <TrashDock@BoxLayout>:
@@ -85,11 +101,9 @@
         spacing: 20
         size_hint_y: None
         height: '60dp'
-        
         Style_Popup_Button:
             text: "CANCEL"
             on_release: root.cancel_func()
-            
         Style_Popup_Button:
             text: "REMOVE"
             background_color: 0.8, 0.1, 0.1, 1
@@ -101,9 +115,7 @@
     auto_dismiss: False
     title: "Rename Column"
     title_size: '18sp'
-    
     background_color: 0, 0, 0, 0
-    
     canvas.before:
         Color:
             rgba: 0.1, 0.1, 0.1, 1
@@ -115,12 +127,10 @@
         Line:
             rectangle: self.x, self.y, self.width, self.height
             width: 2
-
     BoxLayout:
         orientation: 'vertical'
         padding: 20
         spacing: 15
-        
         TextInput:
             id: name_input
             multiline: False
@@ -129,32 +139,26 @@
             size_hint_y: None
             height: '50dp'
             on_text: root.on_text_change(self, self.text)
-
         BoxLayout:
             orientation: 'horizontal'
             spacing: 20
             size_hint_y: None
             height: '60dp'
-            
             Style_Popup_Button:
                 text: "CANCEL"
                 on_release: root.cancel_func()
-                
             Style_Popup_Button:
                 text: "SAVE"
                 background_color: 0.2, 0.6, 0.2, 1
                 on_release: root.save_func()
 
-# NEW: Source Select Popup
 <SourceSelectPopup>:
     size_hint: None, None
     size: '400dp', '320dp'
     auto_dismiss: True
     title: "Library Sources"
     title_size: '18sp'
-    
     background_color: 0, 0, 0, 0
-    
     canvas.before:
         Color:
             rgba: 0.1, 0.1, 0.1, 1
@@ -166,13 +170,12 @@
         Line:
             rectangle: self.x, self.y, self.width, self.height
             width: 2
-
     BoxLayout:
         orientation: 'vertical'
         padding: 20
         spacing: 15
         
-        # LOCAL (Always On)
+        # LOCAL (Now toggleable)
         BoxLayout:
             size_hint_y: None
             height: '40dp'
@@ -187,9 +190,10 @@
                 bold: True
                 color: 1,1,1,1
             CheckBox:
-                active: True
-                disabled: True
+                id: chk_local
+                active: root.use_local
                 size_hint_x: 0.3
+                on_active: root.on_toggle('use_local', self.active)
 
         # LITE
         BoxLayout:
@@ -211,7 +215,7 @@
                 disabled: not root.has_lite
                 size_hint_x: 0.3
                 on_active: root.on_toggle('use_lite', self.active)
-
+        
         # MONITOR
         BoxLayout:
             size_hint_y: None
@@ -232,17 +236,16 @@
                 disabled: not root.has_monitor
                 size_hint_x: 0.3
                 on_active: root.on_toggle('use_monitor', self.active)
-
         Widget:
             size_hint_y: 1
-
         Style_Popup_Button:
             text: "CLOSE"
             size_hint_y: None
             height: '50dp'
             on_release: root.dismiss()
 
-# --- 4. BEVERAGE SELECTOR ---
+# --- 4. IN-COLUMN PANELS ---
+
 <BeverageSelectRow>:
     background_normal: ''
     background_color: 0.2, 0.2, 0.2, 1
@@ -251,8 +254,8 @@
     text_size: self.size
     halign: 'left'
     valign: 'middle'
-    padding: (20, 0)
-    font_size: '18sp'
+    padding: (10, 0)
+    font_size: '16sp'
     bold: True
     canvas.after:
         Color:
@@ -261,55 +264,316 @@
             points: [self.x, self.y, self.right, self.y]
             width: 1
 
-<BeverageSelectPopup>:
-    size_hint: 0.8, 0.9
-    auto_dismiss: False
-    title: "Select Batch"
-    title_size: '18sp'
+<BeverageSelectorPanel>:
+    orientation: 'vertical'
+    canvas.before:
+        Color:
+            rgba: 0.15, 0.15, 0.15, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
     
-    background_color: 0, 0, 0, 0
-    
+    # Title
+    Label:
+        text: "Select Beverage"
+        size_hint_y: None
+        height: '40dp'
+        bold: True
+        color: 0.2, 0.8, 1, 1
+        canvas.before:
+            Color:
+                rgba: 0.1, 0.1, 0.1, 1
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+    RecycleView:
+        id: rv_options
+        viewclass: 'BeverageSelectRow'
+        scroll_type: ['bars', 'content']
+        bar_width: 10
+        RecycleBoxLayout:
+            default_size: None, dp(48)
+            default_size_hint: 1, None
+            size_hint_y: None
+            height: self.minimum_height
+            orientation: 'vertical'
+            spacing: 2
+
+    BoxLayout:
+        size_hint_y: None
+        height: '50dp'
+        spacing: 2
+        
+        Button:
+            text: "CANCEL"
+            background_color: 0.4, 0.4, 0.4, 1
+            background_normal: ''
+            on_release: root.cancel()
+            
+        Button:
+            text: "NEW..."
+            background_color: 0.2, 0.6, 0.2, 1
+            background_normal: ''
+            on_release: root.create_new()
+
+# --- Style Selection Panel ---
+<StyleSelectRow@Button>:
+    background_normal: ''
+    background_color: 0.2, 0.2, 0.2, 1
+    size_hint_y: None
+    height: '48dp'
+    text_size: self.size
+    halign: 'left'
+    valign: 'middle'
+    padding: (10, 0)
+    font_size: '16sp'
+    canvas.after:
+        Color:
+            rgba: 0.3, 0.3, 0.3, 1
+        Line:
+            points: [self.x, self.y, self.right, self.y]
+            width: 1
+
+<BeverageStyleSelectorPanel>:
+    orientation: 'vertical'
     canvas.before:
         Color:
             rgba: 0.1, 0.1, 0.1, 1
         Rectangle:
             pos: self.pos
             size: self.size
-        Color:
-            rgba: 0.2, 0.8, 1, 1
-        Line:
-            rectangle: self.x, self.y, self.width, self.height
-            width: 2
+    
+    # Header
+    Label:
+        text: "Select BJCP Style"
+        size_hint_y: None
+        height: '40dp'
+        bold: True
+        color: 0.2, 0.8, 1, 1
+        canvas.before:
+            Color:
+                rgba: 0.15, 0.15, 0.15, 1
+            Rectangle:
+                pos: self.pos
+                size: self.size
 
+    # List (Full Height)
+    RecycleView:
+        id: rv_styles
+        viewclass: 'StyleSelectRow'
+        scroll_type: ['bars', 'content']
+        bar_width: 15
+        RecycleBoxLayout:
+            default_size: None, dp(48)
+            default_size_hint: 1, None
+            size_hint_y: None
+            height: self.minimum_height
+            orientation: 'vertical'
+
+    # Footer (Persistent Cancel)
+    Button:
+        text: "CANCEL"
+        size_hint_y: None
+        height: '50dp'
+        background_normal: ''
+        background_color: 0.4, 0.4, 0.4, 1
+        bold: True
+        on_release: root.cancel()
+
+<BeverageEditorPanel>:
+    orientation: 'vertical'
+    padding: 10
+    spacing: 10
+    canvas.before:
+        Color:
+            rgba: 0.15, 0.15, 0.15, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    Label:
+        text: "Edit Beverage" if root.bev_id else "Create Beverage"
+        size_hint_y: None
+        height: '30dp'
+        bold: True
+        color: 0.2, 0.8, 1, 1
+
+    # Vertical form to fit in narrow column
+    ScrollView:
+        do_scroll_x: False
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_y: None
+            height: self.minimum_height
+            spacing: 10
+            padding: 5
+
+            # Name
+            Label:
+                text: "Name"
+                size_hint_y: None
+                height: '25dp'
+                halign: 'left'
+                text_size: self.size
+                color: 0.8, 0.8, 0.8, 1
+            TextInput:
+                id: input_name
+                text: root.bev_name
+                multiline: False
+                size_hint_y: None
+                height: '40dp'
+                font_size: '16sp'
+                padding: [10, 10]
+                background_normal: ''
+                background_color: 0.9, 0.9, 0.9, 1
+                foreground_color: 0, 0, 0, 1
+                on_text: root.bev_name = self.text
+
+            # Style (Button trigger)
+            Label:
+                text: "Style"
+                size_hint_y: None
+                height: '25dp'
+                halign: 'left'
+                text_size: self.size
+                color: 0.8, 0.8, 0.8, 1
+            Button:
+                text: root.bev_style
+                size_hint_y: None
+                height: '40dp'
+                text_size: self.size
+                halign: 'left'
+                valign: 'middle'
+                padding: (10, 0)
+                background_normal: ''
+                background_color: 0.25, 0.25, 0.25, 1
+                on_release: root.open_style_selector()
+
+            # ABV
+            BoxLayout:
+                size_hint_y: None
+                height: '30dp'
+                Label: 
+                    text: "ABV %"
+                    halign: 'left'
+                    text_size: self.size
+                Label:
+                    text: "{:.1f}%".format(root.bev_abv)
+                    bold: True
+                    color: 0.2, 0.8, 1, 1
+            BoxLayout:
+                size_hint_y: None
+                height: '40dp'
+                FineTuneButton:
+                    text: "-"
+                    on_release: sli_abv.value = max(sli_abv.min, sli_abv.value - sli_abv.step)
+                Slider:
+                    id: sli_abv
+                    min: 0.0
+                    max: 15.0
+                    step: 0.1
+                    value: root.bev_abv
+                    on_value: root.bev_abv = self.value
+                FineTuneButton:
+                    text: "+"
+                    on_release: sli_abv.value = min(sli_abv.max, sli_abv.value + sli_abv.step)
+
+            # IBU
+            BoxLayout:
+                size_hint_y: None
+                height: '30dp'
+                Label: 
+                    text: "IBU"
+                    halign: 'left'
+                    text_size: self.size
+                Label:
+                    text: str(int(root.bev_ibu))
+                    bold: True
+                    color: 0.2, 0.8, 1, 1
+            BoxLayout:
+                size_hint_y: None
+                height: '40dp'
+                FineTuneButton:
+                    text: "-"
+                    on_release: sli_ibu.value = max(sli_ibu.min, sli_ibu.value - sli_ibu.step)
+                Slider:
+                    id: sli_ibu
+                    min: 0
+                    max: 120
+                    step: 1
+                    value: root.bev_ibu
+                    on_value: root.bev_ibu = int(self.value)
+                FineTuneButton:
+                    text: "+"
+                    on_release: sli_ibu.value = min(sli_ibu.max, sli_ibu.value + sli_ibu.step)
+
+    # Footer Area
     BoxLayout:
         orientation: 'vertical'
-        padding: 10
-        spacing: 10
+        size_hint_y: None
+        # Height expands if we are showing the Delete section
+        height: '100dp' if root.bev_id else '50dp'
+        spacing: 5
         
-        RecycleView:
-            id: rv_options
-            viewclass: 'BeverageSelectRow'
-            scroll_type: ['bars', 'content']
-            bar_width: 20
-            RecycleBoxLayout:
-                default_size: None, dp(48)
-                default_size_hint: 1, None
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: 'vertical'
-                spacing: 2
-        
-        Style_Popup_Button:
-            text: "CANCEL"
+        # Row 1: Back / Save
+        BoxLayout:
             size_hint_y: None
-            height: '60dp'
-            on_release: root.dismiss()
+            height: '50dp'
+            spacing: 2
+            
+            Button:
+                text: "BACK"
+                background_color: 0.4, 0.4, 0.4, 1
+                background_normal: ''
+                on_release: root.cancel()
+                
+            Button:
+                text: "SAVE"
+                background_color: 0.2, 0.6, 0.2, 1
+                background_normal: ''
+                on_release: root.save()
 
-# --- 5. TEMPLATES ---
+        # Row 2: Delete Logic (Only visible if editing existing)
+        BoxLayout:
+            size_hint_y: None
+            height: '50dp' if root.bev_id else 0
+            opacity: 1 if root.bev_id else 0
+            disabled: not root.bev_id
+            
+            ScreenManager:
+                id: sm_delete
+                transition: SlideTransition(direction='left')
+                
+                # Normal State: Show Delete Button
+                Screen:
+                    name: 'btn_delete'
+                    Button:
+                        text: "DELETE BEVERAGE"
+                        background_normal: ''
+                        background_color: 0.5, 0.1, 0.1, 1
+                        on_release: root.toggle_delete_mode(True)
+                
+                # Confirm State: Show Cancel / Confirm
+                Screen:
+                    name: 'confirm_delete'
+                    BoxLayout:
+                        spacing: 2
+                        Button:
+                            text: "CANCEL"
+                            background_normal: ''
+                            background_color: 0.4, 0.4, 0.4, 1
+                            on_release: root.toggle_delete_mode(False)
+                        Button:
+                            text: "CONFIRM DELETE"
+                            background_normal: ''
+                            background_color: 1, 0, 0, 1
+                            on_release: root.confirm_delete()
+
+# --- 5. COLUMN ---
 <BatchCard>:
     orientation: 'vertical'
     size_hint_y: None
-    # CHANGED: Reduced height from 80dp to 70dp to force tightness
     height: '70dp'
     padding: 0
     spacing: 0
@@ -326,8 +590,7 @@
             size: self.size
     BoxLayout:
         orientation: 'vertical'
-        # CHANGED: Reduced vertical padding [left, top, right, bottom]
-        padding: [15, 2, 22, 2]
+        padding: [10, 2, 10, 2]
         spacing: 0
         BoxLayout:
             orientation: 'horizontal'
@@ -386,7 +649,6 @@
         size_hint_y: None
         height: '40dp' if not root.is_collapsed else 0
         opacity: 1 if not root.is_collapsed else 0
-        
         padding: [5, 0]
         canvas.before:
             Color:
@@ -394,7 +656,6 @@
             Rectangle:
                 pos: self.pos
                 size: self.size
-        
         HeaderButton:
             text: root.title
             background_normal: ''
@@ -410,7 +671,6 @@
         height: 0 if not root.is_collapsed else 100
         opacity: 1 if root.is_collapsed else 0
         padding: [0, 10, 0, 0]
-        
         HeaderButton:
             text: root.vertical_title
             background_normal: ''
@@ -423,39 +683,64 @@
             text_size: self.size
             column_ref: root
 
-    # --- CONTENT ---
-    BoxLayout:
-        orientation: 'vertical'
+    # --- CONTENT (ScreenManager for sliding views) ---
+    ScreenManager:
+        id: sm_col
         opacity: 0 if root.is_collapsed else 1
         size_hint_y: None if root.is_collapsed else 1
         height: 0 if root.is_collapsed else 100
+        transition: SlideTransition(direction='down')
 
-        Button:
-            id: add_btn
-            text: "+ Add Batch"
-            size_hint_y: None
-            height: '50dp'
-            background_normal: ''
-            background_color: 0.2, 0.4, 0.6, 1
-            on_release: root.open_beverage_selector()
-            font_size: '18sp'
-            bold: True
-            color: 1, 1, 1, 1
-
-        ScrollView:
-            scroll_type: ['bars']  
-            bar_width: 20 
-            bar_color: 0.6, 0.6, 0.6, 0.9
-            bar_inactive_color: 0.3, 0.3, 0.3, 0.5
-            scroll_wheel_distance: 40
-            
+        # 1. CARD LIST (Normal View)
+        Screen:
+            name: 'view_cards'
             BoxLayout:
-                id: card_container
                 orientation: 'vertical'
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: 5
-                padding: 5
+                Button:
+                    id: add_btn
+                    text: "+ Add Batch"
+                    size_hint_y: None
+                    height: '50dp'
+                    background_normal: ''
+                    background_color: 0.2, 0.4, 0.6, 1
+                    on_release: root.open_selector()
+                    font_size: '18sp'
+                    bold: True
+                    color: 1, 1, 1, 1
+                ScrollView:
+                    scroll_type: ['bars']  
+                    bar_width: 20 
+                    bar_color: 0.6, 0.6, 0.6, 0.9
+                    bar_inactive_color: 0.3, 0.3, 0.3, 0.5
+                    scroll_wheel_distance: 40
+                    BoxLayout:
+                        id: card_container
+                        orientation: 'vertical'
+                        size_hint_y: None
+                        height: self.minimum_height
+                        spacing: 5
+                        padding: 5
+
+        # 2. BEVERAGE SELECTOR (List View)
+        Screen:
+            name: 'view_select'
+            BeverageSelectorPanel:
+                id: selector_panel
+                column_ref: root
+
+        # 3. BEVERAGE EDITOR (Form View)
+        Screen:
+            name: 'view_create'
+            BeverageEditorPanel:
+                id: editor_panel
+                column_ref: root
+
+        # 4. BJCP STYLE SELECTOR (Full List)
+        Screen:
+            name: 'view_style'
+            BeverageStyleSelectorPanel:
+                id: style_panel
+                column_ref: root
 
 <DashboardScreen>:
     BoxLayout:
@@ -463,7 +748,6 @@
         BoxLayout:
             size_hint_y: None
             height: '40dp'
-            # CHANGED: Set right padding to 2 to match the columns_container padding
             padding: [15, 0, 2, 0]
             canvas.before:
                 Color:
@@ -477,7 +761,6 @@
                 text_size: self.size
                 halign: 'left'
                 valign: 'middle'
-            
             Button:
                 text: "LIBRARIES"
                 size_hint_x: None

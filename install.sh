@@ -1,0 +1,134 @@
+#!/bin/bash
+# install.sh
+# Installation script for BatchFlow application.
+
+# Stop on any error to prevent partial installs
+set -e
+
+echo "=========================================="
+echo "       BatchFlow Installer"
+echo "=========================================="
+
+# --- 1. Define Variables ---
+# We use ${VAR:-DEFAULT} syntax. If the variable is already set (exported), 
+# use it; otherwise, use the default value.
+
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PYTHON_EXEC="python3"
+VENV_DIR="$PROJECT_DIR/venv"
+VENV_PYTHON_EXEC="$VENV_DIR/bin/python"
+
+# Dynamic Variables (Can be overridden by setup.sh)
+DATA_DIR="${DATA_DIR:-$HOME/batchflow-data}"
+DESKTOP_FILENAME="${DESKTOP_FILENAME:-batchflow.desktop}"
+APP_TITLE="${APP_TITLE:-BatchFlow}"
+
+DESKTOP_FILE_TEMPLATE="$PROJECT_DIR/batchflow.desktop"
+INSTALL_LOCATION="$HOME/.local/share/applications/$DESKTOP_FILENAME"
+
+echo "Project path:   $PROJECT_DIR"
+echo "Data directory: $DATA_DIR"
+echo "App Title:      $APP_TITLE"
+
+# --- 2. Install System Dependencies (Requires Sudo) ---
+echo ""
+echo "--- [Step 1/5] Checking System Dependencies ---"
+echo "You may be asked for your password to install system packages."
+
+# Install Kivy dependencies
+sudo apt-get update
+sudo apt-get install -y python3-tk python3-dev swig python3-venv liblgpio-dev
+
+# --- 3. Setup Python Environment (Clean Install) ---
+echo ""
+echo "--- [Step 2/5] Setting up Virtual Environment ---"
+
+# CLEANUP: Delete existing venv to ensure a clean slate
+if [ -d "$VENV_DIR" ]; then
+    echo "Removing old virtual environment for a clean install..."
+    rm -rf "$VENV_DIR"
+fi
+
+echo "Creating new Python virtual environment at $VENV_DIR..."
+$PYTHON_EXEC -m venv "$VENV_DIR"
+
+if [ $? -ne 0 ]; then
+    echo "[FATAL ERROR] Failed to create virtual environment."
+    exit 1
+fi
+
+# --- 4. Install Python Libraries ---
+echo ""
+echo "--- [Step 3/5] Installing Python Libraries ---"
+
+# Verify requirements.txt exists
+if [ ! -f "$PROJECT_DIR/requirements.txt" ]; then
+    echo "[FATAL ERROR] requirements.txt not found in $PROJECT_DIR."
+    exit 1
+fi
+
+# Install using the pip INSIDE the virtual environment
+"$VENV_PYTHON_EXEC" -m pip install --upgrade pip
+"$VENV_PYTHON_EXEC" -m pip install -r "$PROJECT_DIR/requirements.txt"
+
+if [ $? -ne 0 ]; then
+    echo "[FATAL ERROR] Dependency installation failed."
+    exit 1
+fi
+
+# --- 5. Create User Data Directory ---
+echo ""
+echo "--- [Step 4/5] Configuring Data Directory ---"
+if [ ! -d "$DATA_DIR" ]; then
+    echo "Creating user data directory: $DATA_DIR"
+    mkdir -p "$DATA_DIR"
+    chmod 700 "$DATA_DIR"
+else
+    echo "Data directory already exists ($DATA_DIR). Skipping."
+fi
+
+# --- 6. Install Desktop Shortcut ---
+echo ""
+echo "--- [Step 5/5] Installing Desktop Shortcut ---"
+
+if [ -f "$DESKTOP_FILE_TEMPLATE" ]; then
+    # 4a. Define paths
+    # UPDATED: Points to batchflow_main.py and batchflow.png
+    EXEC_CMD="$VENV_PYTHON_EXEC $PROJECT_DIR/src/batchflow_main.py"
+    ICON_PATH="$PROJECT_DIR/src/assets/batchflow.png"
+    
+    # 1. Copy to temp
+    cp "$DESKTOP_FILE_TEMPLATE" /tmp/batchflow_temp.desktop
+    
+    # 2. Update Exec path to use VENV python
+    sed -i "s|Exec=PLACEHOLDER_EXEC_PATH|Exec=$EXEC_CMD|g" /tmp/batchflow_temp.desktop
+    
+    # 3. Update Path (working directory)
+    sed -i "s|Path=PLACEHOLDER_PATH|Path=$PROJECT_DIR/src|g" /tmp/batchflow_temp.desktop
+
+    # 4. Update Icon path
+    sed -i "s|Icon=PLACEHOLDER_ICON_PATH|Icon=$ICON_PATH|g" /tmp/batchflow_temp.desktop
+
+    # 5. Update the Name
+    sed -i "s|^Name=.*|Name=$APP_TITLE|g" /tmp/batchflow_temp.desktop
+    
+    # 6. Move to user applications folder
+    mkdir -p "$HOME/.local/share/applications"
+    mv /tmp/batchflow_temp.desktop "$INSTALL_LOCATION"
+    
+    # 7. Make executable
+    chmod +x "$INSTALL_LOCATION"
+    
+    echo "Shortcut installed to: $INSTALL_LOCATION"
+else
+    echo "[WARNING] batchflow.desktop template not found. Skipping shortcut."
+fi
+
+echo ""
+echo "==========================================================================="
+echo "    Installation Complete!"
+echo ""
+echo "    At the Applications menu, select Other, $APP_TITLE to run the app."
+echo ""
+echo "    You may need to reboot your RPi to refresh the menu."
+echo "==========================================================================="

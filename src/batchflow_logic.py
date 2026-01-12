@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from kivy.event import EventDispatcher
 from kivy.properties import ListProperty, DictProperty, BooleanProperty
 
@@ -10,7 +11,6 @@ class BatchManager(EventDispatcher):
     fermenting_list = ListProperty([])
     finishing_list = ListProperty([])
     
-    # Store dynamic titles
     column_titles = DictProperty({
         'rotation': 'Rotation',
         'deck': 'On Deck',
@@ -18,7 +18,6 @@ class BatchManager(EventDispatcher):
         'finishing': 'Finishing'
     })
 
-    # Store expanded/collapsed states (False = Expanded, True = Collapsed)
     column_states = DictProperty({
         'rotation': False,
         'deck': False,
@@ -29,14 +28,15 @@ class BatchManager(EventDispatcher):
     beverage_map = DictProperty({})
     all_beverages_list = ListProperty([])
     
-    # NEW: Source Selection Settings
+    # The list used by the dropdown
+    bjcp_styles = ListProperty([])
+    
     source_settings = DictProperty({
-        'use_local': True,    # Always True logically, but stored for consistency
-        'use_lite': True,     # Default to checking external
-        'use_monitor': True   # Default to checking external
+        'use_local': True,
+        'use_lite': True,
+        'use_monitor': True
     })
 
-    # Availability Flags (Not saved, just status)
     has_lite = BooleanProperty(False)
     has_monitor = BooleanProperty(False)
 
@@ -45,40 +45,87 @@ class BatchManager(EventDispatcher):
         self.data_dir = self._find_data_dir()
         self.settings_file = os.path.join(self.data_dir, "batchflow_settings.json")
         
-        # Load settings first to get source preferences
         self.load_workflow()
-        # Then load library based on those preferences
         self.load_library()
+        self.load_bjcp_styles()
 
     def _find_data_dir(self):
-        # Always use a dedicated batchflow-data folder for app state/settings
         home = os.path.expanduser("~")
         path = os.path.join(home, "batchflow-data")
-        
         if not os.path.exists(path):
             try:
                 os.makedirs(path)
             except OSError: pass
         return path
 
-    def load_library(self):
-        # AGGREGATOR LOGIC
-        # 1. Load Local (Base)
-        # 2. Load Lite (If enabled + exists) -> Overwrites duplicates
-        # 3. Load Monitor (If enabled + exists) -> Overwrites duplicates
+    def load_bjcp_styles(self):
+        candidates = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'bjcp_styles.json'),
+            os.path.join(self.data_dir, 'bjcp_styles.json'),
+            "assets/bjcp_styles.json"
+        ]
         
+        raw_data = []
+        for p in candidates:
+            if os.path.exists(p):
+                try:
+                    with open(p, 'r') as f:
+                        content = json.load(f)
+                        if isinstance(content, list):
+                            raw_data = content
+                        elif isinstance(content, dict):
+                            for k in ['styles', 'beverages', 'entries', 'class']:
+                                if k in content and isinstance(content[k], list):
+                                    raw_data = content[k]
+                                    break
+                        if raw_data: break
+                except Exception as e:
+                    print(f"[Logic] Error loading BJCP from {p}: {e}")
+
+        clean_list = []
+        if raw_data:
+            for item in raw_data:
+                if isinstance(item, dict):
+                    s_id = None
+                    for key in ['id', 'number', 'code', 'style_id', 'bjcp', 'category', 'category_id']:
+                        if key in item and item[key]:
+                            val = str(item[key]).strip()
+                            if len(val) < 6 and any(c.isdigit() for c in val):
+                                s_id = val
+                                break
+                    s_name = item.get('name', '') or item.get('style', '') or item.get('title', '')
+                    
+                    if s_id and s_name:
+                        clean_list.append(f"{s_id} - {s_name}")
+                    elif s_name:
+                        clean_list.append(s_name)
+                elif isinstance(item, str):
+                    clean_list.append(item)
+        
+        def bjcp_sort_key(entry):
+            parts = re.split(r'[\s\-]+', entry, 1) 
+            code = parts[0]
+            match = re.match(r"(\d+)([A-Za-z]*)", code)
+            if match:
+                return (int(match.group(1)), match.group(2))
+            return (9999, code)
+
+        if clean_list:
+            self.bjcp_styles = sorted(clean_list, key=bjcp_sort_key)
+        else:
+            self.bjcp_styles = ["1A - American Light Lager", "1B - American Lager", "18B - American Pale Ale", "21A - American IPA"]
+
+    def load_library(self):
         home = os.path.expanduser("~")
         path_local = os.path.join(self.data_dir, "beverages_library.json")
         path_lite = os.path.join(home, "keglevel_lite-data", "beverages_library.json")
         path_monitor = os.path.join(home, "keglevel-data", "beverages_library.json")
         
-        # Check availability
         self.has_lite = os.path.exists(path_lite)
         self.has_monitor = os.path.exists(path_monitor)
         
         temp_map = {}
         
-        # Helper to merge file content
         def merge_file(filepath, source_tag):
             if os.path.exists(filepath):
                 try:
@@ -87,13 +134,14 @@ class BatchManager(EventDispatcher):
                         bevs = data.get('beverages', [])
                         for b in bevs:
                             if 'id' in b:
-                                b['_source'] = source_tag # Tag the origin
+                                b['_source'] = source_tag 
                                 temp_map[b['id']] = b
                 except Exception as e:
                     print(f"[Logic] Error loading {source_tag}: {e}")
 
-        # 1. ALWAYS Load Local
-        merge_file(path_local, 'local')
+        # 1. Load Local (Only if enabled)
+        if self.source_settings.get('use_local', True):
+            merge_file(path_local, 'local')
         
         # 2. Load Lite (if enabled)
         if self.source_settings.get('use_lite', False) and self.has_lite:
@@ -105,7 +153,71 @@ class BatchManager(EventDispatcher):
 
         self.beverage_map = temp_map
         self.all_beverages_list = sorted(temp_map.values(), key=lambda x: x.get('name', ''))
-        print(f"[Logic] Library Loaded. Total unique beverages: {len(self.all_beverages_list)}")
+
+    def save_local_beverage(self, bev_data):
+        path_local = os.path.join(self.data_dir, "beverages_library.json")
+        data = {"beverages": []}
+        
+        if os.path.exists(path_local):
+            try:
+                with open(path_local, 'r') as f:
+                    data = json.load(f)
+            except Exception:
+                data = {"beverages": []}
+        
+        if 'beverages' not in data:
+            data['beverages'] = []
+            
+        existing_idx = -1
+        for i, b in enumerate(data['beverages']):
+            if b.get('id') == bev_data.get('id'):
+                existing_idx = i
+                break
+        
+        if existing_idx >= 0:
+            data['beverages'][existing_idx] = bev_data
+        else:
+            data['beverages'].append(bev_data)
+            
+        try:
+            with open(path_local, 'w') as f:
+                json.dump(data, f, indent=4)
+            self.load_library()
+            return True
+        except Exception as e:
+            print(f"[Logic] Error saving beverage: {e}")
+            return False
+
+    def delete_local_beverage(self, bev_id):
+        path_local = os.path.join(self.data_dir, "beverages_library.json")
+        if not os.path.exists(path_local): return False
+        
+        try:
+            with open(path_local, 'r') as f:
+                data = json.load(f)
+            
+            original_len = len(data.get('beverages', []))
+            data['beverages'] = [b for b in data.get('beverages', []) if b.get('id') != bev_id]
+            
+            if len(data['beverages']) < original_len:
+                with open(path_local, 'w') as f:
+                    json.dump(data, f, indent=4)
+                print(f"[Logic] Deleted beverage {bev_id}")
+                self.load_library()
+                return True
+        except Exception as e:
+            print(f"[Logic] Delete Error: {e}")
+        return False
+
+    def remove_batch_globally(self, batch_id):
+        changed = False
+        for l in [self.rotation_list, self.deck_list, self.fermenting_list, self.finishing_list]:
+            if batch_id in l:
+                l.remove(batch_id)
+                changed = True
+        if changed:
+            self.save_workflow()
+            print(f"[Logic] Removed batch {batch_id} from all columns.")
 
     def load_workflow(self):
         defaults = {"on_rotation": [], "on_deck": [], "fermenting": [], "lagering_or_finishing": []}
@@ -156,7 +268,6 @@ class BatchManager(EventDispatcher):
         }
         current_data["titles"] = dict(self.column_titles)
         current_data["states"] = dict(self.column_states)
-        # NEW: Save source settings
         current_data["library_sources"] = dict(self.source_settings)
 
         try:
