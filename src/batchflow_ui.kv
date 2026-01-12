@@ -1,0 +1,494 @@
+#:kivy 2.0.0
+#:import Window kivy.core.window.Window
+
+# --- 1. TYPOGRAPHY SYSTEM ---
+<Style_Title@Label>:
+    font_size: '24sp'
+    bold: True
+    color: app.col_theme_blue
+
+<Style_Header@Label>:
+    font_size: '18sp'
+    bold: True
+    color: 1, 1, 1, 1
+
+<Style_Button@Label>:
+    font_size: '18sp'
+    bold: True
+    color: 1, 1, 1, 1
+
+<Style_Beverage@Label>:
+    font_size: '14sp'
+    bold: True
+    color: 1, 1, 1, 1
+
+<Style_ABV@Label>:
+    font_size: '14sp'
+    bold: False
+    color: app.col_theme_blue
+
+<Style_IBU@Label>:
+    font_size: '14sp'
+    bold: False
+    color: 0.7, 0.7, 0.7, 1
+
+<Style_BJCP@Label>:
+    font_size: '14sp'
+    bold: False
+    italic: True
+    color: 0.7, 0.7, 0.7, 1
+
+# A standardized button style inheriting from Button
+<Style_Popup_Button@Button>:
+    background_normal: ''
+    font_size: '18sp'
+    bold: True
+    color: 1, 1, 1, 1
+    # Default is Grey, override for Save/Delete
+    background_color: 0.4, 0.4, 0.4, 1
+
+# --- 2. TRASH DOCK ---
+<TrashDock@BoxLayout>:
+    orientation: 'vertical'
+    size_hint: 1, None
+    height: Window.height * 0.12
+    pos_hint: {'x': 0, 'y': 0}
+    opacity: 0 
+    canvas.before:
+        Color:
+            rgba: 0.7, 0.1, 0.1, 0.9
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        Color:
+            rgba: 1, 1, 1, 0.2
+        Line:
+            points: [self.x, self.top, self.right, self.top]
+            width: 2
+    Style_Title:
+        text: "Remove"
+        color: 1, 1, 1, 1
+
+# --- 3. POPUP STYLES ---
+<ConfirmPopupContent@BoxLayout>:
+    orientation: 'vertical'
+    padding: 20
+    spacing: 20
+    Style_Header:
+        id: msg_label
+        text: "Remove this item?"
+        text_size: self.width, None
+        halign: 'center'
+        valign: 'middle'
+    BoxLayout:
+        orientation: 'horizontal'
+        spacing: 20
+        size_hint_y: None
+        height: '60dp'
+        
+        Style_Popup_Button:
+            text: "CANCEL"
+            on_release: root.cancel_func()
+            
+        Style_Popup_Button:
+            text: "REMOVE"
+            background_color: 0.8, 0.1, 0.1, 1
+            on_release: root.confirm_func()
+
+<RenamePopup>:
+    size_hint: None, None
+    size: '400dp', '250dp'
+    auto_dismiss: False
+    title: "Rename Column"
+    title_size: '18sp'
+    
+    background_color: 0, 0, 0, 0
+    
+    canvas.before:
+        Color:
+            rgba: 0.1, 0.1, 0.1, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        Color:
+            rgba: 0.2, 0.8, 1, 1
+        Line:
+            rectangle: self.x, self.y, self.width, self.height
+            width: 2
+
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 20
+        spacing: 15
+        
+        TextInput:
+            id: name_input
+            multiline: False
+            font_size: '18sp'
+            padding_y: [self.height / 2.0 - (self.line_height / 2.0) * len(self._lines), 0]
+            size_hint_y: None
+            height: '50dp'
+            on_text: root.on_text_change(self, self.text)
+
+        BoxLayout:
+            orientation: 'horizontal'
+            spacing: 20
+            size_hint_y: None
+            height: '60dp'
+            
+            Style_Popup_Button:
+                text: "CANCEL"
+                on_release: root.cancel_func()
+                
+            Style_Popup_Button:
+                text: "SAVE"
+                background_color: 0.2, 0.6, 0.2, 1
+                on_release: root.save_func()
+
+# NEW: Source Select Popup
+<SourceSelectPopup>:
+    size_hint: None, None
+    size: '400dp', '320dp'
+    auto_dismiss: True
+    title: "Library Sources"
+    title_size: '18sp'
+    
+    background_color: 0, 0, 0, 0
+    
+    canvas.before:
+        Color:
+            rgba: 0.1, 0.1, 0.1, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        Color:
+            rgba: 0.2, 0.8, 1, 1
+        Line:
+            rectangle: self.x, self.y, self.width, self.height
+            width: 2
+
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 20
+        spacing: 15
+        
+        # LOCAL (Always On)
+        BoxLayout:
+            size_hint_y: None
+            height: '40dp'
+            canvas.before:
+                Color:
+                    rgba: 0.2, 0.2, 0.2, 1
+                Rectangle:
+                    pos: self.pos
+                    size: self.size
+            Label:
+                text: "BatchFlow (Local)"
+                bold: True
+                color: 1,1,1,1
+            CheckBox:
+                active: True
+                disabled: True
+                size_hint_x: 0.3
+
+        # LITE
+        BoxLayout:
+            size_hint_y: None
+            height: '40dp'
+            canvas.before:
+                Color:
+                    rgba: 0.15, 0.25, 0.15, 1
+                Rectangle:
+                    pos: self.pos
+                    size: self.size
+            Label:
+                text: "KegLevel Lite"
+                bold: True
+                color: 1,1,1,1
+            CheckBox:
+                id: chk_lite
+                active: root.use_lite
+                disabled: not root.has_lite
+                size_hint_x: 0.3
+                on_active: root.on_toggle('use_lite', self.active)
+
+        # MONITOR
+        BoxLayout:
+            size_hint_y: None
+            height: '40dp'
+            canvas.before:
+                Color:
+                    rgba: 0.25, 0.15, 0.15, 1
+                Rectangle:
+                    pos: self.pos
+                    size: self.size
+            Label:
+                text: "KegLevel Monitor"
+                bold: True
+                color: 1,1,1,1
+            CheckBox:
+                id: chk_monitor
+                active: root.use_monitor
+                disabled: not root.has_monitor
+                size_hint_x: 0.3
+                on_active: root.on_toggle('use_monitor', self.active)
+
+        Widget:
+            size_hint_y: 1
+
+        Style_Popup_Button:
+            text: "CLOSE"
+            size_hint_y: None
+            height: '50dp'
+            on_release: root.dismiss()
+
+# --- 4. BEVERAGE SELECTOR ---
+<BeverageSelectRow>:
+    background_normal: ''
+    background_color: 0.2, 0.2, 0.2, 1
+    size_hint_y: None
+    height: '48dp'
+    text_size: self.size
+    halign: 'left'
+    valign: 'middle'
+    padding: (20, 0)
+    font_size: '18sp'
+    bold: True
+    canvas.after:
+        Color:
+            rgba: 0.4, 0.4, 0.4, 1
+        Line:
+            points: [self.x, self.y, self.right, self.y]
+            width: 1
+
+<BeverageSelectPopup>:
+    size_hint: 0.8, 0.9
+    auto_dismiss: False
+    title: "Select Batch"
+    title_size: '18sp'
+    
+    background_color: 0, 0, 0, 0
+    
+    canvas.before:
+        Color:
+            rgba: 0.1, 0.1, 0.1, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        Color:
+            rgba: 0.2, 0.8, 1, 1
+        Line:
+            rectangle: self.x, self.y, self.width, self.height
+            width: 2
+
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 10
+        spacing: 10
+        
+        RecycleView:
+            id: rv_options
+            viewclass: 'BeverageSelectRow'
+            scroll_type: ['bars', 'content']
+            bar_width: 20
+            RecycleBoxLayout:
+                default_size: None, dp(48)
+                default_size_hint: 1, None
+                size_hint_y: None
+                height: self.minimum_height
+                orientation: 'vertical'
+                spacing: 2
+        
+        Style_Popup_Button:
+            text: "CANCEL"
+            size_hint_y: None
+            height: '60dp'
+            on_release: root.dismiss()
+
+# --- 5. TEMPLATES ---
+<BatchCard>:
+    orientation: 'vertical'
+    size_hint_y: None
+    # CHANGED: Reduced height from 80dp to 70dp to force tightness
+    height: '70dp'
+    padding: 0
+    spacing: 0
+    canvas.before:
+        Color:
+            rgba: 0.4, 0.4, 0.4, 1
+        Line:
+            rectangle: self.x, self.y, self.width, self.height
+            width: 1
+        Color:
+            rgba: self.background_color
+        Rectangle:
+            pos: self.pos
+            size: self.size
+    BoxLayout:
+        orientation: 'vertical'
+        # CHANGED: Reduced vertical padding [left, top, right, bottom]
+        padding: [15, 2, 22, 2]
+        spacing: 0
+        BoxLayout:
+            orientation: 'horizontal'
+            spacing: 5
+            Style_Beverage:
+                text: root.bv_name
+                color: root.bv_name_color
+                size_hint_x: 0.7
+                text_size: self.size
+                halign: 'left'
+                valign: 'middle'
+                shorten: True
+                shorten_from: 'right'
+            Style_ABV:
+                text: root.bv_abv + "%"
+                size_hint_x: 0.3
+                text_size: self.size
+                halign: 'right'
+                valign: 'middle'
+        BoxLayout:
+            orientation: 'horizontal'
+            spacing: 5
+            Style_BJCP:
+                text: root.bv_style
+                size_hint_x: 0.7
+                text_size: self.size
+                halign: 'left'
+                valign: 'middle'
+                shorten: True
+                shorten_from: 'right'
+            Style_IBU:
+                text: "IBU: " + root.bv_ibu
+                size_hint_x: 0.3
+                text_size: self.size
+                halign: 'right'
+                valign: 'middle'
+
+<StageColumn>:
+    orientation: 'vertical'
+    size_hint_x: None if self.is_collapsed else 1
+    width: '50dp' if self.is_collapsed else '100dp'
+
+    canvas.before:
+        Color:
+            rgba: (0.1, 0.1, 0.1, 1) if self.is_collapsed else (0.15, 0.15, 0.15, 1)
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        Color:
+            rgba: 0.3, 0.3, 0.3, 1
+        Line:
+            points: [self.right, self.y, self.right, self.top]
+
+    # --- HEADER (Expanded) ---
+    BoxLayout:
+        size_hint_y: None
+        height: '40dp' if not root.is_collapsed else 0
+        opacity: 1 if not root.is_collapsed else 0
+        
+        padding: [5, 0]
+        canvas.before:
+            Color:
+                rgba: 0.05, 0.05, 0.05, 1
+            Rectangle:
+                pos: self.pos
+                size: self.size
+        
+        HeaderButton:
+            text: root.title
+            background_normal: ''
+            background_color: 0,0,0,0
+            font_size: '18sp'
+            bold: True
+            color: 1, 1, 1, 1
+            column_ref: root
+
+    # --- VERTICAL HEADER (Collapsed) ---
+    BoxLayout:
+        size_hint_y: 1 if root.is_collapsed else None
+        height: 0 if not root.is_collapsed else 100
+        opacity: 1 if root.is_collapsed else 0
+        padding: [0, 10, 0, 0]
+        
+        HeaderButton:
+            text: root.vertical_title
+            background_normal: ''
+            background_color: 0,0,0,0
+            font_size: '18sp'
+            bold: True
+            color: 0.5, 0.5, 0.5, 1
+            halign: 'center'
+            valign: 'top'
+            text_size: self.size
+            column_ref: root
+
+    # --- CONTENT ---
+    BoxLayout:
+        orientation: 'vertical'
+        opacity: 0 if root.is_collapsed else 1
+        size_hint_y: None if root.is_collapsed else 1
+        height: 0 if root.is_collapsed else 100
+
+        Button:
+            id: add_btn
+            text: "+ Add Batch"
+            size_hint_y: None
+            height: '50dp'
+            background_normal: ''
+            background_color: 0.2, 0.4, 0.6, 1
+            on_release: root.open_beverage_selector()
+            font_size: '18sp'
+            bold: True
+            color: 1, 1, 1, 1
+
+        ScrollView:
+            scroll_type: ['bars']  
+            bar_width: 20 
+            bar_color: 0.6, 0.6, 0.6, 0.9
+            bar_inactive_color: 0.3, 0.3, 0.3, 0.5
+            scroll_wheel_distance: 40
+            
+            BoxLayout:
+                id: card_container
+                orientation: 'vertical'
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: 5
+                padding: 5
+
+<DashboardScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        BoxLayout:
+            size_hint_y: None
+            height: '40dp'
+            # CHANGED: Set right padding to 2 to match the columns_container padding
+            padding: [15, 0, 2, 0]
+            canvas.before:
+                Color:
+                    rgba: 0.05, 0.05, 0.05, 1
+                Rectangle:
+                    pos: self.pos
+                    size: self.size
+            Style_Title:
+                text: "BatchFlow"
+                size_hint_x: 1
+                text_size: self.size
+                halign: 'left'
+                valign: 'middle'
+            
+            Button:
+                text: "LIBRARIES"
+                size_hint_x: None
+                width: '200dp'
+                background_normal: ''
+                background_color: 0.2, 0.4, 0.6, 1
+                font_size: '14sp'
+                bold: True
+                on_release: app.open_source_popup()
+        BoxLayout:
+            id: columns_container
+            orientation: 'horizontal'
+            padding: 2
+            spacing: 2
